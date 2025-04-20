@@ -1,0 +1,127 @@
+---
+title: "Affari Tuoi è truccato?"
+author: "Pietro Parenti"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+```{r include=FALSE}
+library(readxl)
+DatiAffariTuoi <- read_excel("C:/Users/paren/Desktop/PROGETTI/AFFARI_TUOI/DatiAffariTuoi.xlsx", 
+    col_types = c("numeric", "numeric", "text", "date", "numeric"))
+```
+# Obiettivo
+Il gioco televisivo affari tuoi è stato al centro di molte critiche alcuni anni fa con l'accusa di truccare le puntate per manipolare la trasmissione al fine di portare alla fine della puntata i pacchi dal valore più alto, il tutto per aumentare gli ascolti. Il gioco subì quindi una grande rivoluzione e il problema sembrò essere stato risolto.
+Col ritorno in auge del programma negli ultimi mesi, sono tornate voci su possibili irregolarità. Lo studio ha lo scopo di andare a verificare possibili anomalie presenti nelle puntate della primavera 2024.
+Le analisi si concentreranno sulla possibile associazione tra il valore del pacco e varie variabili, in particolare la variabile ordine, che evidenzia, attraverso un numero, l'ordine di uscita del pacco nel corso della puntata. 
+
+# Descrizione del gioco
+Il gioco prevede per ogni puntata che il concorrente scelga un pacco tra i 20 che gli si presentano davanti. Ciascun pacco è caratterizzato da un numero, una regione e un valore in denaro. Le prime due variabili sono note, l'ultima è ignota, fino all'apertura del pacco. Il concorrente infatti, durante la puntata deve aprire ciascuno dei 20 pacchi, aprendo per ultimo il proprio. Il valore che è contenuto nel proprio pacco è il montepremi che il concorrente si porterà a casa.
+
+# Analisi descrittive
+Il dataset è formato da 5 variabili e 920 osservazioni.
+Queste 920 osservazioni fanno riferimento a tutte le estrazioni effettuate nel programma televisivo dal 5 marzo 2024 al 23 aprile 2024. Tra queste due date sono andate in onda un totale di 46 puntate e ciascuna delle quali è composta da 20 estrazioni.
+```{r include=FALSE}
+require(skimr)
+```
+```{r}
+skim_without_charts(DatiAffariTuoi)
+```
+
+Per ciascuna estrazione sono stati rilevate 5 variabili:
+
+ - il numero del pacco che è stato aperto
+ 
+ - i soldi contenuti nel pacco
+ 
+ - la regione di appartenenza del pacco
+ 
+ - la data della puntata a cui si riferisce
+ 
+ - il numero ordinale di estrazione del pacco.
+ 
+I valori medi delle variabili osservate sembrano essere totalmente coerenti con le logiche del gioco, dunque non si ritiene che ci siano errori nella raccolta dei dati. Non sono presenti dati mancanti.
+
+# Analisi statistiche
+## Verifica indipendenza tra le variabili soldi e ordine
+Per fare ciò vengono utilizzati due metodi.
+Nel primo metodo la variabile soldi sarà trasformata in categoriale. In questo caso si segue la logica del programma, dunque la variabile viene divisa in pacchi cosiddetti blu (corrispondenti ai 10 pacchi con valore più basso) e rossi (corrispondenti ai 10 con valore più elevato). La variabile ordine dei pacchi invece viene invece divisa in 4 categorie di uguale dimensione.
+```{r}
+DatiAffariTuoi$soldi_cat <- cut(DatiAffariTuoi$soldi, breaks = c(-1, 505, 300001), 
+                  labels = c("Blu", "Rosso" ))
+skim_without_charts(DatiAffariTuoi$soldi_cat)
+
+DatiAffariTuoi$ordine_cat <- cut(DatiAffariTuoi$ordine, breaks = c(-1, 5.5, 10.5, 15.5, 20.5), 
+                  labels = c("Inizio", "Inizio-metà", "Metà-fine", "Fine" ))
+skim_without_charts(DatiAffariTuoi$ordine_cat)
+```
+Si esegue quindi un test di indipendenza chi2.
+Viene creata prima la tabella di contingenza.
+```{r}
+ordine_soldi <- table(DatiAffariTuoi$ordine_cat, DatiAffariTuoi$soldi_cat)
+print(ordine_soldi)
+```
+```{r}
+chisq.test(ordine_soldi)
+```
+Le due variabili non sono associate a nessun livello di significatività.
+
+Si verifica ora l'associazione andando a valutare la media della variabile soldi negli utlimi 3 pacchi rimanenti in gioco. La media non dovrebbe essere significativamente distante dal valore della media generale dei pacchi che, come abbiamo visto in precedenza, è pari a 40298.05.
+```{r}
+t.test((DatiAffariTuoi$soldi[DatiAffariTuoi$ordine >= 18]),
+       (DatiAffariTuoi$soldi[DatiAffariTuoi$ordine < 18]),
+       var.equal = TRUE)
+```
+Il t-test a due medie non evidenzia una significativa differenza tra la media degli utlimi tre pacchi e quella delgi altri.
+
+## Verifica indipendenza tra le variabili regione/pacco e soldi
+Per questa verifica utilizziamo nuovamente il test di associazione chi2 mantenendo la divisione precedente in pacchi blu e pacchi rossi.
+
+### Associzione regione-soldi
+```{r}
+regione_soldi <- table(DatiAffariTuoi$regione, DatiAffariTuoi$soldi_cat)
+print(regione_soldi)
+```
+```{r}
+chisq.test(regione_soldi)
+```
+L'associazione tra le due variabili ha un p-value di 0.06, il che porta a valutazioni incerte. Le due variabili infatti non risultano associate a un livello di significatività del 5%, tuttavia risultano associate a un livello del 10%. In questo studio tuttavia il livello che è stato considerato anche per le altre variabili è il 5%, dunque questi dati non ci portano a rifiutare l'ipotesi nulla: le due variabili sono dunque indipendenti.
+
+### Associzione pacco-soldi
+```{r}
+pacco_soldi <- table(DatiAffariTuoi$pacco, DatiAffariTuoi$soldi_cat)
+print(pacco_soldi)
+```
+```{r}
+chisq.test(pacco_soldi)
+```
+Le due variabili sono indipendenti.
+
+## Analisi montepremi vinti
+I montepremi vinti sono coerenti con le logiche del gioco? La media dei pacchi aperti per ultimi (ordine=20) corrispondono al premio vinto dal concorrente. La media dei pacchi con ordine=20 dovrebbe essere non significativamente diversa da quella degli altri pacchi.
+```{r}
+t.test((DatiAffariTuoi$soldi[DatiAffariTuoi$ordine >= 20]),
+       (DatiAffariTuoi$soldi[DatiAffariTuoi$ordine < 20]),
+       var.equal = TRUE)
+```
+La media dei montepremi vinti è in linea con gli altri pacchi.
+
+# Conclusioni
+L'indipendenza tra tutte le coppie di variabili prese in considerazione è stata confermata dai dati. E' dunque corretto ritenere che il gioco sia assolutamente regolare, almeno per i fattori tenuti in considerazione in questo studio.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
